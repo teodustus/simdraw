@@ -1,7 +1,12 @@
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
+// GitHub Pages serves project sites at /<repo>/, so we need the matching base.
+// In dev (or other hosts) leave base as '/'.
+const base = process.env.GITHUB_ACTIONS ? '/simdraw/' : '/';
+
 export default defineConfig({
+  base,
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',
@@ -14,7 +19,8 @@ export default defineConfig({
         background_color: '#0b1220',
         display: 'standalone',
         orientation: 'any',
-        start_url: '/',
+        scope: base,
+        start_url: base,
         icons: [
           {
             src: 'favicon.svg',
