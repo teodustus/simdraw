@@ -49,10 +49,6 @@ export class UI {
     this.toolbar.className = 'toolbar';
     this.root.appendChild(this.toolbar);
 
-    const middle = document.createElement('div');
-    middle.style.flex = '1';
-    this.root.appendChild(middle);
-
     this.palette = document.createElement('div');
     this.palette.className = 'palette';
     this.root.appendChild(this.palette);

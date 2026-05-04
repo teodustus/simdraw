@@ -49,8 +49,9 @@ html, body {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  display: grid;
-  grid-template-rows: auto 1fr auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
   padding-top: var(--safe-top);
   padding-bottom: var(--safe-bottom);
   padding-left: var(--safe-left);
@@ -58,7 +59,8 @@ html, body {
   z-index: 10;
 }
 
-#ui-root > * {
+#ui-root > .toolbar,
+#ui-root > .palette {
   pointer-events: auto;
 }
 

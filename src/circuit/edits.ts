@@ -82,15 +82,16 @@ export function findPinAt(doc: CircuitDoc, wx: number, wy: number, tolerance = 0
   return best;
 }
 
-export function addWireSegment(doc: CircuitDoc, wire: Wire, p: { x: number; y: number }): void {
+/** Append a point to the wire (with an automatic L-shaped corner if the move is
+ *  diagonal). The wire is NOT inserted into `doc.wires` here — that happens
+ *  once at finishWire so we don't end up with duplicates. */
+export function addWireSegment(wire: Wire, p: { x: number; y: number }): void {
   const last = wire.points[wire.points.length - 1];
   if (last && last.x === p.x && last.y === p.y) return;
   if (last && last.x !== p.x && last.y !== p.y) {
-    // Insert L-shape: push intermediate corner first
     wire.points.push({ x: p.x, y: last.y });
   }
   wire.points.push({ x: p.x, y: p.y });
-  if (!doc.wires.includes(wire)) doc.wires.push(wire);
 }
 
 export function startWire(start: { x: number; y: number }): Wire {
