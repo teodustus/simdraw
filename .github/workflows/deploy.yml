@@ -6,6 +6,16 @@ on:
       - main
       - claude/circuit-drawing-app-tx4Lh
   workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Anledning (för loggen)'
+        required: false
+        default: 'manuell körning'
+      skip_tests:
+        description: 'Hoppa över tester'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -26,7 +36,8 @@ jobs:
           node-version: '22'
           cache: 'npm'
       - run: npm ci
-      - run: npm test
+      - if: ${{ inputs.skip_tests != true }}
+        run: npm test
       - run: npm run build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
