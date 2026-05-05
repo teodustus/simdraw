@@ -13,6 +13,7 @@ const stubCallbacks = {
   onSave: noop,
   onExport: noop,
   onImport: noop,
+  onLoadDemo: noop,
   onChangeValue: noop,
   onChangeLabel: noop,
   onToggleSwitch: noop,

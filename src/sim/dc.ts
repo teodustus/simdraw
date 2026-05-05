@@ -19,7 +19,6 @@ const VCE_SAT = 0.2;
 
 const VF_LED_DEFAULT = 2.0;
 const VF_DIODE_DEFAULT = 0.7;
-const RD_DIODE = 1;     // dynamic resistance when diode is conducting
 
 interface DeviceState {
   /** for diodes/LEDs: 'on' = forward, 'off' = blocking */
@@ -130,14 +129,12 @@ function solveLinear(doc: CircuitDoc, nl: Netlist, states: Map<string, DeviceSta
         const a = netOf(nl, c, 'A'), b = netOf(nl, c, 'K');
         if (!a || !b) break;
         if (s.mode === 'on') {
+          // Ideal PWL: V_A - V_K = Vf when conducting. Series resistance is
+          // assumed by external parts of the circuit; adding a parallel R here
+          // would force a huge constant current through the parallel branch
+          // and ruin the model.
           const Vf = c.kind === 'led' ? (c.value || VF_LED_DEFAULT) : (c.value || VF_DIODE_DEFAULT);
-          // Model: ideal voltage source Vf in series with RD between A (+) and K (-)
-          // We treat as VS Vf between intermediate node n and K, plus R between A and n.
-          // For dense matrix simplicity we instead approximate as: Norton -> add a voltage source.
-          // Simpler: just add VS A-K = Vf when on.
           vsources.push({ plusNet: a, minusNet: b, V: Vf, ownerId: c.id });
-          // Add small series R via stamp (limits unrealistic current)
-          stamps.push({ a, b, G: 1 / RD_DIODE, ownerId: c.id });
         } else {
           stamps.push({ a, b, G: 1 / R_OPEN, ownerId: c.id });
         }
@@ -329,7 +326,7 @@ function conductanceOf(c: ComponentInstance, states: Map<string, DeviceState>): 
     case 'inductor': return 1 / R_SHORT;
     case 'switch':   return s?.mode === 'closed' ? 1 / R_SHORT : 1 / R_OPEN;
     case 'led':
-    case 'diode':    return s?.mode === 'on' ? 1 / RD_DIODE : 1 / R_OPEN;
+    case 'diode':    return s?.mode === 'on' ? 0 : 1 / R_OPEN;
     default:         return 0;
   }
 }

@@ -26,6 +26,8 @@ export type Prim =
 export interface SymbolSpec {
   kind: ComponentKind;
   name: string;
+  /** Short user-facing description shown in tooltips (1–3 sentences). */
+  description: string;
   /** default value (ohms, volts, farads, henries) */
   defaultValue: number;
   /** SI unit suffix for display */
@@ -71,7 +73,8 @@ function mk(spec: Omit<SymbolSpec, 'bbox'>): SymbolSpec {
 
 const RESISTOR: SymbolSpec = mk({
   kind: 'resistor',
-  name: 'Resistor',
+  name: 'Motstånd',
+  description: 'Begränsar ström. Värdet anges i ohm (Ω). Använd som förmotstånd till lysdioder, för att dela ner spänningar och som "pull-up/pull-down" på ingångar.',
   defaultValue: 1000,
   unit: 'Ω',
   designator: 'R',
@@ -91,7 +94,8 @@ const RESISTOR: SymbolSpec = mk({
 
 const CAPACITOR: SymbolSpec = mk({
   kind: 'capacitor',
-  name: 'Capacitor',
+  name: 'Kondensator',
+  description: 'Lagrar laddning som ett litet återladdningsbart batteri. Släpper inte igenom likström men passerar växlande signaler. Vanlig som avkoppling vid IC:er och i RC-filter.',
   defaultValue: 1e-6,
   unit: 'F',
   designator: 'C',
@@ -109,7 +113,8 @@ const CAPACITOR: SymbolSpec = mk({
 
 const INDUCTOR: SymbolSpec = mk({
   kind: 'inductor',
-  name: 'Inductor',
+  name: 'Spole',
+  description: 'En lindad tråd som motsätter sig snabba strömändringar. I en RC-bil sitter spolar i motorer, relays och RF-mottagare. Vid likström beter sig spolen som en vanlig ledning.',
   defaultValue: 1e-3,
   unit: 'H',
   designator: 'L',
@@ -131,7 +136,8 @@ const INDUCTOR: SymbolSpec = mk({
 
 const BATTERY: SymbolSpec = mk({
   kind: 'battery',
-  name: 'Battery',
+  name: 'Batteri',
+  description: 'Levererar en konstant likspänning (V) till kretsen. Den långa plattan är pluspolen. Ett vanligt RC-bilpaket är 7,2 V eller 9 V.',
   defaultValue: 9,
   unit: 'V',
   designator: 'V',
@@ -154,8 +160,9 @@ const BATTERY: SymbolSpec = mk({
 
 const LED: SymbolSpec = mk({
   kind: 'led',
-  name: 'LED',
-  defaultValue: 2.0, // Vf typical
+  name: 'Lysdiod',
+  description: 'Lyser när ström flödar från anod (A, plus) till katod (K, minus). Behöver alltid ett förmotstånd för att inte brännas. Värdet är framåtspänningsfallet (Vf), typiskt ~2 V för röd, ~3 V för blå/vit.',
+  defaultValue: 2.0,
   unit: 'V',
   designator: 'D',
   pins: [
@@ -181,7 +188,8 @@ const LED: SymbolSpec = mk({
 
 const DIODE: SymbolSpec = mk({
   kind: 'diode',
-  name: 'Diode',
+  name: 'Diod',
+  description: 'Släpper igenom ström åt ett håll (anod → katod) men blockerar omvänt. Används för att skydda mot omvänd polaritet och som "flyback"-diod parallellt med spolar och motorer.',
   defaultValue: 0.7,
   unit: 'V',
   designator: 'D',
@@ -199,8 +207,9 @@ const DIODE: SymbolSpec = mk({
 
 const SWITCH: SymbolSpec = mk({
   kind: 'switch',
-  name: 'Switch',
-  defaultValue: 0, // 0 = open, 1 = closed
+  name: 'Strömställare',
+  description: 'På/av-brytare. Tap eller långklick för att vippa mellan öppen (av) och stängd (på). Användbar för av/på-knapp på RC-bilen.',
+  defaultValue: 0,
   unit: '',
   designator: 'SW',
   pins: [
@@ -219,7 +228,8 @@ const SWITCH: SymbolSpec = mk({
 
 const GROUND: SymbolSpec = mk({
   kind: 'ground',
-  name: 'Ground',
+  name: 'Jord (GND)',
+  description: 'Definierar referenspunkten 0 V för hela kretsen. Simulatorn kräver minst en jord. Anslut till batteriets minus- pol och alla andra "minus".',
   defaultValue: 0,
   unit: '',
   designator: 'GND',
@@ -234,7 +244,8 @@ const GROUND: SymbolSpec = mk({
 
 const VCC: SymbolSpec = mk({
   kind: 'vcc',
-  name: 'Vcc',
+  name: 'Matning (Vcc)',
+  description: 'En idealisk spänningskälla mot jord. Praktiskt för att slippa rita ut batteriet på flera ställen — alla Vcc-symboler hänger ihop elektriskt med samma spänning.',
   defaultValue: 5,
   unit: 'V',
   designator: 'VCC',
@@ -248,8 +259,9 @@ const VCC: SymbolSpec = mk({
 // NPN bipolar transistor: pins at C(top), B(left), E(bottom)
 const NPN: SymbolSpec = mk({
   kind: 'npn',
-  name: 'NPN',
-  defaultValue: 100, // beta
+  name: 'NPN-transistor',
+  description: 'Bipolär transistor som leder mellan kollektor (C) och emitter (E) när bas (B) är ~0,65 V högre än emittern. Används som strömförstärkare eller på/av-switch för små motorer och lysdioder.',
+  defaultValue: 100,
   unit: '',
   designator: 'Q',
   pins: [
@@ -270,7 +282,8 @@ const NPN: SymbolSpec = mk({
 
 const PNP: SymbolSpec = mk({
   kind: 'pnp',
-  name: 'PNP',
+  name: 'PNP-transistor',
+  description: 'Bipolär transistor som leder mellan emitter (E, oftast pluset) och kollektor (C) när basen är ~0,65 V LÄGRE än emittern. Vanlig i high-side-switchar.',
   defaultValue: 100,
   unit: '',
   designator: 'Q',
@@ -292,8 +305,9 @@ const PNP: SymbolSpec = mk({
 
 const NMOS: SymbolSpec = mk({
   kind: 'nmos',
-  name: 'NMOS',
-  defaultValue: 2, // Vth (V)
+  name: 'NMOS-transistor',
+  description: 'Spänningsstyrd switch — leder mellan drain (D) och source (S) när gate (G) är högre än Vth (tröskelspänning). Effektiv som motor- eller LED-driver eftersom gaten knappt drar någon ström.',
+  defaultValue: 2,
   unit: 'V',
   designator: 'M',
   pins: [
@@ -317,7 +331,8 @@ const NMOS: SymbolSpec = mk({
 
 const PMOS: SymbolSpec = mk({
   kind: 'pmos',
-  name: 'PMOS',
+  name: 'PMOS-transistor',
+  description: 'Spänningsstyrd switch som leder när gate (G) är LÄGRE än source. Sitter ofta i high-side-läge mellan plus och last (motor, LED). Vth är negativt (t.ex. −2 V).',
   defaultValue: -2,
   unit: 'V',
   designator: 'M',
@@ -342,8 +357,9 @@ const PMOS: SymbolSpec = mk({
 
 const MOTOR: SymbolSpec = mk({
   kind: 'motor',
-  name: 'DC Motor',
-  defaultValue: 5, // ohm winding resistance
+  name: 'Likströmsmotor',
+  description: 'En likspänningsmotor representerad som sin lindningsresistans (typ 1–10 Ω för en mindre RC-bilmotor). Strömmen genom motorn blir ungefär V/R i stilla läge — ger en grov uppskattning av motorbelastning.',
+  defaultValue: 5,
   unit: 'Ω',
   designator: 'M',
   pins: [

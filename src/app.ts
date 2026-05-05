@@ -220,6 +220,20 @@ export function createApp(opts: AppOptions): App {
       invalidate('import');
       ui.showToast('Krets inläst');
     },
+    onLoadDemo(newDoc) {
+      pushUndo();
+      doc = newDoc;
+      if (doc.view) {
+        view.tx = doc.view.tx;
+        view.ty = doc.view.ty;
+        view.zoom = doc.view.zoom;
+      }
+      selection.clear();
+      lastSim = null;
+      ui.setState({ selection: null, message: null });
+      persist();
+      invalidate('demo');
+    },
     onChangeValue(c, v) {
       c.value = v;
       persist();
