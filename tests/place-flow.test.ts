@@ -28,6 +28,7 @@ describe('Place flow (regression: tap on canvas after picking a chip places a co
       viewport: { width: 800, height: 600 },
       storage: null,
       scheduleFrame: (cb) => cb(),
+      enableFlowAnimation: false,
     });
 
     // 1. Pick "battery" via palette (the actual UI button).
@@ -56,6 +57,7 @@ describe('Place flow (regression: tap on canvas after picking a chip places a co
       viewport: { width: 800, height: 600 },
       storage: null,
       scheduleFrame: (cb) => cb(),
+      enableFlowAnimation: false,
     });
 
     (document.querySelector('.chip[data-kind="resistor"]') as HTMLButtonElement).click();
@@ -74,6 +76,7 @@ describe('Place flow (regression: tap on canvas after picking a chip places a co
       viewport: { width: 800, height: 600 },
       storage: null,
       scheduleFrame: (cb) => cb(),
+      enableFlowAnimation: false,
     });
 
     (document.querySelector('.chip[data-kind="led"]') as HTMLButtonElement).click();
@@ -96,6 +99,7 @@ describe('Wire flow (regression: two pin taps connect components)', () => {
       viewport: { width: 800, height: 600 },
       storage: null,
       scheduleFrame: (cb) => cb(),
+      enableFlowAnimation: false,
     });
 
     // Place two batteries 8 grid units apart.

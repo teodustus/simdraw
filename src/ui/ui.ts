@@ -4,7 +4,7 @@ import { symbolSvg } from './icons';
 import { DEMOS, type Demo } from '../demos';
 
 export interface UICallbacks {
-  onSelectTool(tool: 'select' | 'place' | 'wire' | 'erase'): void;
+  onSelectTool(tool: 'select' | 'place' | 'wire' | 'erase' | 'probe'): void;
   onPick(kind: ComponentKind): void;
   onRotate(): void;
   onDelete(): void;
@@ -21,7 +21,7 @@ export interface UICallbacks {
 }
 
 export interface UIState {
-  tool: 'select' | 'place' | 'wire' | 'erase';
+  tool: 'select' | 'place' | 'wire' | 'erase' | 'probe';
   pickedKind: ComponentKind | null;
   selection: ComponentInstance | null;
   simRunning: boolean;
@@ -93,13 +93,15 @@ export class UI {
     select.title = 'Markera (S)';
     const wire = btn('〰', () => this.cb.onSelectTool('wire'), { id: 'tool-wire' });
     wire.title = 'Ledning (W)';
+    const probe = btn('⌖', () => this.cb.onSelectTool('probe'), { id: 'tool-probe' });
+    probe.title = 'Probe — mät V/I (P)';
     const erase = btn('×', () => this.cb.onSelectTool('erase'), { id: 'tool-erase' });
     erase.title = 'Radera (E)';
     const rotate = btn('↻', () => this.cb.onRotate());
     rotate.title = 'Rotera (R)';
     const del = btn('🗑', () => this.cb.onDelete());
     del.title = 'Ta bort markerad (Del)';
-    this.toolbar.append(select, wire, erase, rotate, del);
+    this.toolbar.append(select, wire, probe, erase, rotate, del);
 
     const spacer = document.createElement('div');
     spacer.className = 'spacer';
@@ -288,7 +290,7 @@ export class UI {
   }
 
   private render(): void {
-    for (const id of ['tool-select', 'tool-wire', 'tool-erase']) {
+    for (const id of ['tool-select', 'tool-wire', 'tool-probe', 'tool-erase']) {
       const btn = this.toolbar.querySelector(`[data-id="${id}"]`) as HTMLElement | null;
       if (btn) btn.classList.toggle('active', this.state.tool === id.replace('tool-', ''));
     }

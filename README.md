@@ -21,12 +21,13 @@ touch-flödet. Appen är installerbar som PWA.
 - **Tap** på arbetsytan → placera komponent
 - **W** / "〰" → ledningsverktyg (klicka pin → klicka pin)
 - **S** / "✦" → markeringsverktyg (drag för att flytta, drag tomt för att panorera)
+- **P** / "⌖" → probe-verktyg: tap på en ledning eller pin → spänningsmätare, tap på en komponent → strömmätare. Tap igen för att ta bort.
 - **E** / "×" → raderverktyg
 - **R** → rotera 90°
 - **Pinch** → zooma
 - **Tryck och håll** → öppna egenskaper / vippa strömställare
 - **Esc** → avbryt verktyg, **Del** → ta bort markerad
-- **Space** / "▶ Simulera" → kör DC-simulering
+- **Space** / "▶ Simulera" → kör DC-simulering. Efter ett lyckat resultat animeras strömflödet längs ledningarna automatiskt — fart proportionell mot strömmens storlek.
 
 ## Komponentbibliotek (v1)
 
@@ -74,7 +75,7 @@ RC-bil-grundkretsar.
 Sortering: ungefärligt enkel → svår.
 
 ### Quality-of-life
-- **Probe-verktyg**: tap på en ledning visar nodspänningen, tap på en komponent visar dess ström i en flytande etikett
+- ✅ **Probe-verktyg**: tap på en ledning visar nodspänningen, tap på en komponent visar dess ström i en flytande etikett
 - **Smart wire-routing**: undvika krockar med komponenter automatiskt (A* över griden)
 - **Multi-select via lasso**: drag-en-rektangel-markering, gruppflytt, gruppkopiera
 - **Kopiera/klistra in**: med klipp­bord-stöd så delar av kretsar kan flyttas mellan flikar
@@ -96,7 +97,7 @@ Sortering: ungefärligt enkel → svår.
 - **AC analys**: småsignal-frekvenssvep för filter och förstärkare
 - **Bättre BJT/MOSFET**: linjär aktiv region (Ic = β·Ib), transkonduktans i mättnad
 - **Termiska gränser**: varna när effektförlust i en komponent överskrider t.ex. 250 mW
-- **Animerat strömflöde**: pulserande punkter längs ledningarna proportionellt mot ström
+- ✅ **Animerat strömflöde**: pulserande punkter längs ledningarna proportionellt mot ström
 
 ### Plattform & samarbete
 - **Cloud sync**: GitHub Gist eller en dedikerad backend för delning via länk

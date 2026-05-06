@@ -1,4 +1,4 @@
-import type { CircuitDoc, ComponentInstance, Wire } from '../circuit/types';
+import type { CircuitDoc, ComponentInstance, Wire, Probe } from '../circuit/types';
 import { getSymbol, type SymbolSpec, type Prim } from '../symbols/library';
 import { createGL } from './gl';
 import { createGridProgram, createShapeProgram, type GridProgram, type ShapeProgram } from './programs';
@@ -22,6 +22,12 @@ export interface RenderInput {
   wireDraft?: { points: Array<{ x: number; y: number }>; cursor: { x: number; y: number } | null } | null;
   junctions?: Array<{ x: number; y: number }>;
   sim?: SimResults | null;
+  /** map from "x,y" grid key → netId, used by voltage probes */
+  pointToNet?: Map<string, string>;
+  /** animation: turn on flowing dots along wires when sim has currents */
+  animateFlow?: boolean;
+  /** map componentId → branch current (for animation; usually duplicates sim) */
+  netCurrents?: Map<string, number>;
 }
 
 const COLORS = {
@@ -190,7 +196,7 @@ export class Renderer {
 
   private renderText(input: RenderInput): void {
     const ctx = this.tctx;
-    const { doc, view, sim } = input;
+    const { doc, view, sim, pointToNet } = input;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.clearRect(0, 0, this.cssW, this.cssH);
     ctx.font = '500 11px ui-sans-serif, system-ui, sans-serif';
@@ -223,7 +229,176 @@ export class Renderer {
         }
       }
     }
+
+    // Animated flow dots along wires
+    if (input.animateFlow && sim?.ok && pointToNet) {
+      drawFlowDots(ctx, view, doc, sim, pointToNet, performance.now() / 1000);
+    }
+
+    // Probes (drawn last so they sit on top of flow dots)
+    if (doc.probes && doc.probes.length > 0) {
+      for (const pr of doc.probes) {
+        drawProbe(ctx, view, pr, doc, sim ?? null, pointToNet);
+      }
+    }
   }
+}
+
+function drawFlowDots(
+  ctx: CanvasRenderingContext2D,
+  view: View,
+  doc: CircuitDoc,
+  sim: SimResults,
+  pointToNet: Map<string, string>,
+  time: number,
+): void {
+  // Compute max current per net by walking each component's pins.
+  const netCurrent = new Map<string, number>();
+  for (const c of doc.components) {
+    const i = sim.branchCurrents.get(c.id);
+    if (i === undefined) continue;
+    const mag = Math.abs(i);
+    if (mag < 1e-6) continue;
+    const sym = getSymbol(c.kind);
+    for (const pin of sym.pins) {
+      const wp = pinWorld(c, pin.x, pin.y);
+      const key = `${Math.round(wp.x)},${Math.round(wp.y)}`;
+      const net = pointToNet.get(key);
+      if (!net) continue;
+      const prev = netCurrent.get(net) ?? 0;
+      if (mag > prev) netCurrent.set(net, mag);
+    }
+  }
+
+  ctx.save();
+  for (const w of doc.wires) {
+    if (w.points.length < 2) continue;
+    const startKey = `${Math.round(w.points[0].x)},${Math.round(w.points[0].y)}`;
+    const net = pointToNet.get(startKey);
+    if (!net) continue;
+    const I = netCurrent.get(net) ?? 0;
+    if (I < 1e-6) continue;
+
+    // Speed grows with log of current; clamp so 1mA → ~0.4 cycle/s, 1A → ~1.4
+    const speed = Math.max(0.2, Math.min(1.5, 0.4 + Math.log10(I * 1000 + 1) * 0.25));
+    const phase = (time * speed) % 1;
+    const alpha = Math.min(0.95, 0.4 + Math.log10(I * 1000 + 1) * 0.15);
+    ctx.fillStyle = `rgba(124, 243, 160, ${alpha})`;
+    ctx.shadowColor = `rgba(124, 243, 160, 0.6)`;
+    ctx.shadowBlur = 6;
+
+    for (let i = 0; i < w.points.length - 1; i++) {
+      const a = w.points[i];
+      const b = w.points[i + 1];
+      const aScreen = view.worldToScreen(a.x, a.y);
+      const bScreen = view.worldToScreen(b.x, b.y);
+      const len = Math.hypot(bScreen.x - aScreen.x, bScreen.y - aScreen.y);
+      if (len < 8) continue;
+      const dotsPerSegment = Math.max(1, Math.floor(len / 50));
+      for (let d = 0; d < dotsPerSegment; d++) {
+        const t = (phase + d / dotsPerSegment) % 1;
+        const px = aScreen.x + (bScreen.x - aScreen.x) * t;
+        const py = aScreen.y + (bScreen.y - aScreen.y) * t;
+        ctx.beginPath();
+        ctx.arc(px, py, 3.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+  ctx.restore();
+}
+
+function drawProbe(
+  ctx: CanvasRenderingContext2D,
+  view: View,
+  pr: Probe,
+  doc: CircuitDoc,
+  sim: SimResults | null,
+  pointToNet: Map<string, string> | undefined,
+): void {
+  const screen = view.worldToScreen(pr.x, pr.y);
+
+  // Compute label
+  let label = '';
+  let value = '';
+  if (pr.kind === 'voltage') {
+    label = `V@(${pr.x},${pr.y})`;
+    if (sim?.ok && pointToNet) {
+      const key = `${pr.x},${pr.y}`;
+      const net = pointToNet.get(key);
+      if (net !== undefined) {
+        const v = sim.nodeVoltages.get(net) ?? 0;
+        value = formatSI(v, 'V');
+      } else {
+        value = '— flytande';
+      }
+    } else {
+      value = '?';
+    }
+  } else {
+    const c = doc.components.find((x) => x.id === pr.componentId);
+    label = c ? c.label || `${getSymbol(c.kind).designator}` : 'I=?';
+    if (sim?.ok && c) {
+      const i = sim.branchCurrents.get(c.id) ?? 0;
+      value = formatSI(Math.abs(i), 'A');
+    } else {
+      value = '?';
+    }
+  }
+
+  // Anchor dot
+  ctx.fillStyle = '#ffb44a';
+  ctx.beginPath();
+  ctx.arc(screen.x, screen.y, 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#0b1220';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Label box, offset from anchor so it doesn't cover the wire
+  const offsetX = 10;
+  const offsetY = -28;
+  const text = pr.kind === 'voltage' ? value : `I=${value}`;
+  const sub = pr.kind === 'voltage' ? 'V' : label;
+
+  ctx.font = '600 12px ui-sans-serif, system-ui, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  const padding = 6;
+  const width = Math.max(ctx.measureText(text).width, ctx.measureText(sub).width) + padding * 2;
+  const height = 30;
+  const x = screen.x + offsetX;
+  const y = screen.y + offsetY;
+
+  // Rounded box
+  ctx.fillStyle = 'rgba(11, 18, 32, 0.92)';
+  ctx.strokeStyle = '#ffb44a';
+  ctx.lineWidth = 1;
+  roundRect(ctx, x, y, width, height, 6);
+  ctx.fill();
+  ctx.stroke();
+
+  // Sub-label and value
+  ctx.fillStyle = '#8a96b1';
+  ctx.font = '500 9px ui-sans-serif, system-ui, sans-serif';
+  ctx.fillText(sub, x + padding, y + 3);
+  ctx.fillStyle = '#ffb44a';
+  ctx.font = '600 12px ui-sans-serif, system-ui, sans-serif';
+  ctx.fillText(text, x + padding, y + 14);
+}
+
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
 }
 
 /* ------------------------------ Scene builders ------------------------------ */

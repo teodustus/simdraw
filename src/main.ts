@@ -23,6 +23,8 @@ window.addEventListener('keydown', (e) => {
     app.setTool('wire');
   } else if (e.key === 'e' || e.key === 'E') {
     app.setTool('erase');
+  } else if (e.key === 'p' || e.key === 'P') {
+    app.setTool('probe');
   } else if (e.key === 'r' || e.key === 'R') {
     if (app.getTool() === 'place') {
       app.invalidate('rotate-place');

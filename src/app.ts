@@ -22,7 +22,7 @@ import { View } from './render/view';
 import type { PointerHandler } from './input/pointer';
 import type { RenderInput, SimResults } from './render/renderer';
 
-export type Tool = 'select' | 'place' | 'wire' | 'erase';
+export type Tool = 'select' | 'place' | 'wire' | 'erase' | 'probe';
 
 export interface RendererLike {
   render(input: RenderInput): void;
@@ -40,6 +40,9 @@ export interface AppOptions {
   } | null;
   /** schedule a redraw — defaults to requestAnimationFrame, tests can pass a sync callback */
   scheduleFrame?: (cb: () => void) => void;
+  /** when false, no continuous flow animation loop is started after a sim run.
+   *  Tests should set this to false. Default: true. */
+  enableFlowAnimation?: boolean;
 }
 
 export interface App {
@@ -77,6 +80,7 @@ export function createApp(opts: AppOptions): App {
   const renderer = opts.renderer;
   const storage = opts.storage === undefined ? DEFAULT_STORAGE : opts.storage;
   const scheduleFrame = opts.scheduleFrame ?? ((cb) => requestAnimationFrame(cb));
+  const flowEnabled = opts.enableFlowAnimation !== false;
 
   const view = new View();
   let doc: CircuitDoc = storage ? storage.load() : emptyDoc();
@@ -117,6 +121,8 @@ export function createApp(opts: AppOptions): App {
     if (!prev) return;
     doc = JSON.parse(prev) as CircuitDoc;
     selection.clear();
+    lastSim = null;
+    stopFlowLoop();
     ui.setState({ selection: null });
     invalidate('undo');
   }
@@ -178,6 +184,7 @@ export function createApp(opts: AppOptions): App {
       selection.clear();
       ui.setState({ selection: null, message: null });
       lastSim = null;
+      stopFlowLoop();
       persist();
       invalidate('clear');
     },
@@ -230,6 +237,7 @@ export function createApp(opts: AppOptions): App {
       }
       selection.clear();
       lastSim = null;
+      stopFlowLoop();
       ui.setState({ selection: null, message: null });
       persist();
       invalidate('demo');
@@ -287,6 +295,11 @@ export function createApp(opts: AppOptions): App {
         }
         persist();
         invalidate('erase');
+        return;
+      }
+      if (tool === 'probe') {
+        toggleProbeAt(wx, wy);
+        invalidate('probe');
         return;
       }
       const hit = findComponentAt(doc, wx, wy);
@@ -373,6 +386,70 @@ export function createApp(opts: AppOptions): App {
     },
   };
 
+  /** Add a probe at the tapped location, or remove an existing probe if the
+   *  tap is close to one. Voltage probes attach to a pin or wire grid point;
+   *  current probes attach to a component. */
+  function toggleProbeAt(wx: number, wy: number): void {
+    if (!doc.probes) doc.probes = [];
+
+    // First: if tap is on an existing probe label, remove it.
+    for (let i = doc.probes.length - 1; i >= 0; i--) {
+      const pr = doc.probes[i];
+      if (Math.hypot(pr.x - wx, pr.y - wy) <= 1.0) {
+        pushUndo();
+        doc.probes.splice(i, 1);
+        persist();
+        return;
+      }
+    }
+
+    // Component-current probe (only if hit body)
+    const hit = findComponentAt(doc, wx, wy, 0.3);
+    if (hit && hit.kind !== 'ground' && hit.kind !== 'vcc') {
+      pushUndo();
+      doc.probes.push({
+        id: nextId('pr'),
+        kind: 'current',
+        componentId: hit.id,
+        x: hit.x,
+        y: hit.y,
+      });
+      persist();
+      return;
+    }
+
+    // Voltage probe — snap to nearest pin if close, otherwise to wire, else
+    // free grid point.
+    const pin = findPinAt(doc, wx, wy, 0.6);
+    if (pin) {
+      pushUndo();
+      doc.probes.push({
+        id: nextId('pr'),
+        kind: 'voltage',
+        x: pin.x,
+        y: pin.y,
+      });
+      persist();
+      return;
+    }
+
+    const wireIdx = findNearestWireIndex(wx, wy, 0.5);
+    if (wireIdx >= 0) {
+      pushUndo();
+      doc.probes.push({
+        id: nextId('pr'),
+        kind: 'voltage',
+        x: view.snap(wx),
+        y: view.snap(wy),
+      });
+      persist();
+    }
+  }
+
+  function nextId(prefix: string): string {
+    return `${prefix}_${Math.random().toString(36).slice(2, 7)}`;
+  }
+
   function findNearestWireIndex(wx: number, wy: number, tolerance: number): number {
     for (let i = doc.wires.length - 1; i >= 0; i--) {
       const w = doc.wires[i];
@@ -414,11 +491,38 @@ export function createApp(opts: AppOptions): App {
     if (!r.ok) {
       ui.showToast(r.message || 'Simulering misslyckades');
       ui.setState({ message: r.message ?? 'Fel' });
+      stopFlowLoop();
     } else {
       ui.setState({ message: null });
+      // Start animated flow if any branch has appreciable current.
+      const hasFlow = Array.from(r.branchCurrents.values()).some((v) => Math.abs(v) > 1e-6);
+      if (hasFlow) startFlowLoop();
+      else stopFlowLoop();
     }
     invalidate('sim');
     return r;
+  }
+
+  /* ------------------------------ Flow animation ----------------------------- */
+  /* Keeps re-rendering at ~30 fps while a sim has currents, so the flow dots
+     in the renderer have something to advance against. Stopped when the sim
+     is cleared or the user starts editing. */
+  let flowRaf: number | null = null;
+  function startFlowLoop(): void {
+    if (!flowEnabled) return;
+    if (flowRaf !== null) return;
+    if (typeof requestAnimationFrame !== 'function') return;
+    const tick = (): void => {
+      flowRaf = null;
+      if (!lastSim || !lastSim.ok) return;
+      drawFrame();
+      flowRaf = requestAnimationFrame(tick);
+    };
+    flowRaf = requestAnimationFrame(tick);
+  }
+  function stopFlowLoop(): void {
+    if (flowRaf !== null) cancelAnimationFrame(flowRaf);
+    flowRaf = null;
   }
 
   let frameRequested = false;
@@ -452,6 +556,8 @@ export function createApp(opts: AppOptions): App {
       ghost,
       wireDraft: wireDraft.wire ? { points: draftPoints, cursor: wireDraft.cursor } : null,
       sim: lastSim,
+      pointToNet: nl.pointToNet,
+      animateFlow: !!(lastSim && lastSim.ok && lastSim.branchCurrents.size > 0),
     };
     renderer.render(input);
   }
@@ -464,6 +570,8 @@ export function createApp(opts: AppOptions): App {
     setDoc: (d) => {
       doc = d;
       selection.clear();
+      lastSim = null;
+      stopFlowLoop();
       ui.setState({ selection: null });
       invalidate('setDoc');
     },
